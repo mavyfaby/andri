@@ -4,7 +4,7 @@
 [![Standards-based](https://img.shields.io/badge/standards-RFC%203550%20%7C%206349%20%7C%202544-informational.svg)](DESIGN.md#references)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org)
 
-**Fast, all-in-one LAN speed tester.** Measure TCP throughput, UDP loss/jitter, and real file-transfer speeds — one standards-based Rust binary, no dependencies.
+**Fast, all-in-one LAN speed tester.** Measure TCP throughput, UDP loss/jitter, and real file-transfer speeds — one standards-based, self-contained Rust binary.
 
 > **Status: pre-release / in development.** The design is settled (see [DESIGN.md](DESIGN.md)); the implementation is being built mode by mode. Commands and flags below describe the intended interface and may not all work yet.
 
@@ -22,19 +22,33 @@ andri's measurement methodology follows established IETF standards rather than a
 
 ## Install
 
-> Not yet published to crates.io. Once released:
+From crates.io (recommended — no Gatekeeper prompts, builds locally):
 
 ```sh
 cargo install andri
 ```
 
-To build from source:
+Or grab a prebuilt binary for your platform from the
+[latest release](https://github.com/mavyfaby/andri/releases/latest)
+(Linux x64/ARM64, macOS x64/ARM64, Windows x64).
+
+Or build from source:
 
 ```sh
 git clone https://github.com/mavyfaby/andri
 cd andri
 cargo build --release
 # binary at target/release/andri
+```
+
+### macOS: "Apple could not verify…"
+
+Prebuilt binaries aren't notarized, so macOS Gatekeeper blocks them on first run.
+Either install via `cargo install andri` (locally built, no prompt), or clear the
+quarantine flag on the downloaded binary:
+
+```sh
+xattr -d com.apple.quarantine ./andri
 ```
 
 ## Usage

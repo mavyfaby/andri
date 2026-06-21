@@ -1,6 +1,6 @@
 [package]
 name = "andri"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Fast, all-in-one LAN speed tester — TCP throughput, UDP loss/jitter, and real file-transfer speed."
 authors = ["mavyfaby <maverickfabroa@gmail.com>"]
