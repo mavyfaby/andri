@@ -246,4 +246,31 @@ mod tests {
         use clap::CommandFactory;
         Cli::command().debug_assert();
     }
+
+    /// SI suffixes (decimal) and bare numbers parse to the right bits/s.
+    #[test]
+    fn parse_bitrate_suffixes() {
+        assert_eq!(parse_bitrate("1G").unwrap(), 1_000_000_000);
+        assert_eq!(parse_bitrate("500M").unwrap(), 500_000_000);
+        assert_eq!(parse_bitrate("10M").unwrap(), 10_000_000);
+        assert_eq!(parse_bitrate("64K").unwrap(), 64_000);
+        assert_eq!(parse_bitrate("1000").unwrap(), 1_000); // bare = bits/s
+    }
+
+    /// Suffixes are case-insensitive and fractional values scale.
+    #[test]
+    fn parse_bitrate_case_and_fraction() {
+        assert_eq!(parse_bitrate("1g").unwrap(), 1_000_000_000);
+        assert_eq!(parse_bitrate("2.5M").unwrap(), 2_500_000);
+        assert_eq!(parse_bitrate("0.5G").unwrap(), 500_000_000);
+    }
+
+    /// Invalid and negative inputs are rejected, not silently coerced.
+    #[test]
+    fn parse_bitrate_rejects_bad_input() {
+        assert!(parse_bitrate("abc").is_err());
+        assert!(parse_bitrate("").is_err());
+        assert!(parse_bitrate("-5M").is_err());
+        assert!(parse_bitrate("1.2.3").is_err());
+    }
 }

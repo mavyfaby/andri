@@ -16,6 +16,8 @@
   - [`src/proto.rs` — control protocol](#srcprotors--control-protocol)
   - [`src/cli.rs` — CLI parsing & formatting](#srcclirs--cli-parsing--formatting)
   - [`src/meter.rs` — metering & payload](#srcmeterrs--metering--payload)
+  - [`src/modes/udp.rs` — UDP loss/jitter/pacing](#srcmodesudprs--udp-lossjitterpacing)
+  - [`src/modes/file.rs` — file transfer](#srcmodesfilers--file-transfer)
 - [What is intentionally *not* tested](#what-is-intentionally-not-tested)
 - [Adding tests for a new module](#adding-tests-for-a-new-module)
 
@@ -83,6 +85,9 @@ These verify the control-protocol wire format from
 | `mode_flags_selected` | Resolves `ModeFlags` for each flag combination, asserting none → `None`, and each flag → its `Mode`. | Guards the **explicit-mode** rule: there is no default, so absence must yield `None` (the client then errors). |
 | `mode_display_is_uppercase` | Asserts `Mode` displays as `TCP`/`UDP`/`FILE`. | Pins the banner casing (not Rust's `Debug` `Tcp`/`Udp`/`File`). |
 | `cli_definition_is_valid` | Runs clap's `Command::debug_assert()`. | Catches arg/group misconfiguration (conflicts, duplicate flags) at test time instead of first run. |
+| `parse_bitrate_suffixes` | `1G`/`500M`/`64K`/bare number → exact bits/s (decimal SI). | The rate a user types must map to the right offered load. |
+| `parse_bitrate_case_and_fraction` | Lowercase suffixes and fractional values (`2.5M`, `0.5G`). | Tolerant, predictable parsing. |
+| `parse_bitrate_rejects_bad_input` | `abc`, empty, `-5M`, `1.2.3` → error. | Bad input fails loudly, not silently coerced to a wrong rate. |
 
 ### `src/meter.rs` — metering & payload
 
@@ -96,11 +101,33 @@ These verify the control-protocol wire format from
 | `fill_random_is_high_entropy` | A 4 KiB fill hits >200 distinct byte values. | The payload is incompressible (won't be inflated by compressing links). |
 | `fill_random_handles_remainder` | Fills a non-multiple-of-8 length. | The 8-byte-chunked fill must cover the tail bytes. |
 
+### `src/modes/udp.rs` — UDP loss/jitter/pacing
+
+| Test | What it does | Why it matters |
+|---|---|---|
+| `packets_per_tick_math` | At 1 Gbit/s, 1472 B, 1000 ticks/s → ~84.9 pkts/tick, and the rate reconstructs to 1e9. | The pacing formula is what makes the sender hit the target rate (RFC 8085). |
+| `packets_per_tick_low_rate` | 64 Kbit/s yields a sub-1 per-tick count. | Confirms low rates rely on the fractional-remainder carry, not rounding to 0. |
+| `stamp_unstamp_roundtrip` | Writes then reads the 16-byte LE header. | Locks the datagram wire layout (seq + send_ns). |
+| `unstamp_rejects_short_datagram` | A datagram shorter than the header → `None`. | Guards against reading past a truncated/garbage packet. |
+| `perfect_stream_has_no_loss_or_jitter` | 100 evenly-spaced, gap-free packets → 0 loss, ~0 jitter. | Baseline correctness of the loss/jitter accumulator. |
+| `sequence_gap_is_loss` | Seqs `0,1,2,5,6` → expected 7, received 5, lost 2. | RFC 7680 one-way loss from sequence gaps. |
+| `warmup_packets_excluded` | Seqs below the warm-up threshold don't count. | Warm-up exclusion is by sequence number. |
+
+### `src/modes/file.rs` — file transfer
+
+| Test | What it does | Why it matters |
+|---|---|---|
+| `file_len_reports_size` | Writes a 4096-byte file, asserts `file_len` returns 4096. | The size that bounds the transfer must be correct. |
+| `file_len_missing_is_error` | A nonexistent path → error. | A missing file fails fast, before connecting. |
+
 ## What is intentionally *not* tested here
 
+- **End-to-end loopback flows** — the full handshake → data path → result over real
+  sockets is currently verified manually, not by an automated test. All tests here are
+  pure unit tests. A loopback integration suite (`tests/`) is a known gap; when added it
+  should assert result *structure and sanity bounds*, not absolute throughput.
 - **Absolute throughput numbers** — they depend on the machine/network and aren't a
-  correctness property. Integration tests assert structure and sanity bounds, not
-  Gbit/s figures.
+  correctness property.
 - **The deferred web dashboard** — not part of v1 (see [docs/web.md](web.md)).
 
 ## Adding tests for a new module

@@ -19,6 +19,14 @@ const JITTER_GAIN: f64 = 1.0 / 16.0;
 /// Pacing tick rate: send a small burst this many times per second (§3).
 const TICKS_PER_SEC: u64 = 1000;
 
+/// Packets to send per pacing tick to hit `bitrate` bits/s with `packet_bytes`
+/// datagrams: `bitrate / (packet_bytes * 8) / ticks_per_sec` (§3). Fractional;
+/// the sender carries the remainder so the average rate is exact over time.
+fn packets_per_tick(bitrate: u64, packet_bytes: usize, ticks_per_sec: u64) -> f64 {
+    let bits_per_packet = (packet_bytes as f64) * 8.0;
+    bitrate as f64 / bits_per_packet / ticks_per_sec as f64
+}
+
 /// Write the 16-byte little-endian header into `buf`.
 fn stamp(buf: &mut [u8], seq: u64, send_ns: u64) {
     buf[0..8].copy_from_slice(&seq.to_le_bytes());
@@ -254,9 +262,7 @@ pub async fn drive(
     let sock = UdpSocket::bind(("0.0.0.0", 0)).await?;
     sock.connect((host, start.data_port)).await?;
 
-    // packets_per_tick = bitrate / (packet_bytes * 8) / ticks_per_sec.
-    let bits_per_packet = (packet_bytes as f64) * 8.0;
-    let packets_per_tick = bitrate as f64 / bits_per_packet / TICKS_PER_SEC as f64;
+    let packets_per_tick = packets_per_tick(bitrate, packet_bytes, TICKS_PER_SEC);
 
     let mut buf = vec![0u8; packet_bytes];
     // Fill padding once with the seed (incompressible); header is rewritten per packet.
@@ -289,7 +295,7 @@ pub async fn drive(
         let elapsed = t0.elapsed();
         if !quiet && elapsed >= next_report {
             let interval_packets = seq - last_packets;
-            let bps = interval_packets as f64 * bits_per_packet;
+            let bps = interval_packets as f64 * (packet_bytes as f64 * 8.0);
             let tag = if elapsed <= warmup + Duration::from_millis(100) {
                 "  (warm-up, excluded)"
             } else {
@@ -311,6 +317,26 @@ pub async fn drive(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pacing math: at 1 Gbit/s with 1472-byte datagrams and 1000 ticks/s,
+    /// send ~84.9 packets/tick (so the average rate is 1 Gbit/s).
+    #[test]
+    fn packets_per_tick_math() {
+        let ppt = packets_per_tick(1_000_000_000, 1472, 1000);
+        // 1e9 / (1472*8) / 1000 = 84.92…
+        assert!((ppt - 84.92).abs() < 0.01, "got {ppt}");
+
+        // Sanity: reconstruct the rate from the per-tick count.
+        let rate = ppt * (1472.0 * 8.0) * 1000.0;
+        assert!((rate - 1e9).abs() < 1.0);
+    }
+
+    /// Very low rates yield a sub-1 per-tick count (carried via the remainder).
+    #[test]
+    fn packets_per_tick_low_rate() {
+        let ppt = packets_per_tick(64_000, 1472, 1000); // 64 Kbit/s
+        assert!(ppt < 1.0 && ppt > 0.0, "got {ppt}");
+    }
 
     #[test]
     fn stamp_unstamp_roundtrip() {
