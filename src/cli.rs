@@ -118,6 +118,11 @@ pub struct ClientOpts {
     #[arg(long, default_value_t = 1472)]
     pub packet: usize,
 
+    /// File mode: stream generated in-memory bytes instead of reading the file
+    /// from disk, to isolate the network from the sender's disk I/O.
+    #[arg(long)]
+    pub null_source: bool,
+
     /// Emit machine-readable JSON results to stdout.
     #[arg(long)]
     pub json: bool,

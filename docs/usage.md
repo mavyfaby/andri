@@ -5,8 +5,9 @@
 > A user-facing guide to the CLI **as it works today**. For the full intended design
 > surface see [cli.md](cli.md); for protocol/mode internals see the other docs.
 >
-> **Implemented now:** TCP throughput, UDP throughput/loss/jitter.
-> **Not yet:** file transfer (`--file` is stubbed), `--bidir`, the browser dashboard (v2).
+> **Implemented now:** TCP throughput, UDP throughput/loss/jitter, file transfer
+> (incl. `--null-source`).
+> **Not yet:** `--bidir`, the browser dashboard (v2).
 
 ## Quick start
 
@@ -39,7 +40,7 @@ Exactly one mode is **required** — there is no default.
 |---|---|---|
 | `--tcp` | ✅ works | Raw TCP throughput (the wire's max, no rate cap). |
 | `--udp` | ✅ works | UDP throughput + packet loss + jitter at a target rate. **Requires `--bitrate`.** |
-| `--file <PATH>` | ⛔ not implemented yet | Real file-transfer speed (planned). |
+| `--file <PATH>` | ✅ works | Real file-transfer speed (disk → wire → receiver). `--null-source` skips the disk read to isolate the network. |
 
 **Why `--udp` needs `--bitrate`:** UDP has no congestion control, so it sends at exactly
 the rate you choose — that offered load is the input to the experiment, not a cap. TCP
@@ -53,6 +54,7 @@ needs no rate; it discovers the maximum itself. See [udp.md](udp.md).
 | `-P, --parallel <n>` | `1` | client (TCP) | Concurrent data streams. |
 | `-b, --bitrate <rate>` | *required for UDP* | client (UDP) | Target send rate: `1G`, `500M`, `10M`, `64K`, or a bare number (bits/s). |
 | `--packet <bytes>` | `1472` | client (UDP) | Datagram payload size (1472 avoids 1500-MTU fragmentation). |
+| `--null-source` | off | client (file) | Stream generated in-memory bytes instead of reading the file from disk, to isolate the network from the sender's disk I/O. The file's size still bounds the transfer. |
 | `--format <unit>` | `mbps` | both | Output unit: `bits`, `bytes`, `mbps`, `gbps`. Each role formats its own readout. |
 | `--json` | off | client | Emit machine-readable JSON to stdout (suppresses the banner/progress). |
 | `-p, --port <port>` | `5201` | both | Control port (server binds; client dials). |
@@ -144,6 +146,13 @@ andri --client 192.168.1.10 --udp --bitrate 5M
 andri --client 192.168.1.10 --udp --bitrate 500M
 andri --client 192.168.1.10 --udp --bitrate 900M
 andri --client 192.168.1.10 --udp --bitrate 950M
+
+# Real file-transfer speed (includes the sender's disk read)
+andri --client 192.168.1.10 --file ./ubuntu.iso
+
+# Same file, network only (skip the disk read) — compare against the above to
+# see whether the disk or the wire is the bottleneck
+andri --client 192.168.1.10 --file ./ubuntu.iso --null-source
 
 # Machine-readable, on a non-default port
 andri --client 192.168.1.10 --tcp -p 9000 --json

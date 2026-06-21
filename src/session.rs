@@ -2,11 +2,10 @@
 //!
 //! This is the mode-agnostic control flow for both roles (`docs/protocol.md`).
 //! Once data connections are set up it hands off to the per-mode data path in
-//! `crate::modes`. v1 implements TCP; UDP and file negotiate to a not-yet-
-//! implemented rejection.
+//! `crate::modes`. All three modes (TCP, UDP, file) are implemented.
 
 use crate::cli::{self, Cli};
-use crate::modes::{tcp, udp};
+use crate::modes::{file, tcp, udp};
 use crate::proto::{self, Mode, Msg, Negotiate, ProtoError, Start};
 use std::io;
 use tokio::net::{TcpListener, TcpStream};
@@ -53,20 +52,17 @@ async fn serve_session(mut ctrl: TcpStream, fmt: cli::Format) -> io::Result<()> 
         return reject(&mut ctrl, ProtoError::VersionMismatch).await;
     }
 
-    // Negotiate (§3.3). TCP and UDP are implemented; file is not yet.
+    // Negotiate (§3.3). All three modes are implemented.
     let Msg::Negotiate(neg) = proto::read_msg(&mut ctrl).await? else {
         return reject(&mut ctrl, ProtoError::UnexpectedMessage).await;
     };
-    if neg.mode == Mode::File {
-        return reject(&mut ctrl, ProtoError::Internal).await;
-    }
 
-    // Bind the mode's data listener (TCP) / socket (UDP) and tell the client
-    // its ephemeral port (§3.4). Both are kept until after the data path runs.
+    // Bind the mode's data listener (TCP, used by TCP + file) / socket (UDP) and
+    // tell the client its ephemeral port (§3.4).
     let tcp_data;
     let udp_data;
     let data_port = match neg.mode {
-        Mode::Tcp => {
+        Mode::Tcp | Mode::File => {
             let l = TcpListener::bind(("0.0.0.0", 0)).await?;
             let port = l.local_addr()?.port();
             tcp_data = Some(l);
@@ -79,7 +75,6 @@ async fn serve_session(mut ctrl: TcpStream, fmt: cli::Format) -> io::Result<()> 
             udp_data = Some(s);
             port
         }
-        Mode::File => unreachable!("file rejected above"),
     };
     proto::write_msg(
         &mut ctrl,
@@ -97,14 +92,31 @@ async fn serve_session(mut ctrl: TcpStream, fmt: cli::Format) -> io::Result<()> 
         return reject(&mut ctrl, ProtoError::UnexpectedMessage).await;
     };
 
-    // `stop` resolves when the client's Stop message arrives.
-    let stop = async {
-        let _ = proto::read_msg(&mut ctrl).await; // expected: Msg::Stop
-    };
+    // TCP/UDP run until the client's `Stop` arrives; file is bounded by file_len
+    // and ignores Stop. Build the `stop` future only inside the arms that use it,
+    // so it doesn't hold a borrow of `ctrl` across the final write.
     let result = match neg.mode {
-        Mode::Tcp => tcp::serve(tcp_data.unwrap(), &neg, fmt, stop).await?,
-        Mode::Udp => udp::serve(udp_data.unwrap(), &neg, fmt, stop).await?,
-        Mode::File => unreachable!("file rejected above"),
+        Mode::Tcp => {
+            let stop = async {
+                let _ = proto::read_msg(&mut ctrl).await; // expected: Msg::Stop
+            };
+            tcp::serve(tcp_data.unwrap(), &neg, fmt, stop).await?
+        }
+        Mode::Udp => {
+            let stop = async {
+                let _ = proto::read_msg(&mut ctrl).await;
+            };
+            udp::serve(udp_data.unwrap(), &neg, fmt, stop).await?
+        }
+        Mode::File => {
+            let r = file::serve(tcp_data.unwrap(), &neg, fmt).await?;
+            // File is bounded by file_len, but the client still sends `Stop` to
+            // keep the control framing uniform. Drain it: closing the control
+            // socket with that message unread would trigger an RST, not a clean
+            // FIN, and the client would see "connection reset" reading Result.
+            let _ = proto::read_msg(&mut ctrl).await; // expected: Msg::Stop
+            r
+        }
     };
 
     proto::write_msg(&mut ctrl, &Msg::Result(result)).await?;
@@ -129,16 +141,24 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
     let mode = opts.mode.selected().ok_or_else(|| {
         io::Error::other("a mode is required: pass one of --tcp, --udp, or --file <path>")
     })?;
-    // TCP and UDP are implemented; file is not yet.
-    if mode == cli::Mode::File {
-        return Err(crate::modes::file::not_implemented());
-    }
     // UDP requires an explicit target rate — there is no sensible default for
     // the experiment's offered load (docs/udp.md). Fail fast, before connecting.
     let udp_bitrate = if mode == cli::Mode::Udp {
         Some(opts.bitrate.ok_or_else(|| {
             io::Error::other("--udp requires --bitrate (e.g. --bitrate 1G, 500M, 10M)")
         })?)
+    } else {
+        None
+    };
+    // File mode: --file <PATH> is required (even with --null-source, which only
+    // skips reading the contents, not the size). The file length bounds the
+    // transfer. Resolve it before connecting so a missing file fails fast.
+    let file_path = opts.mode.file.clone();
+    let file_len = if mode == cli::Mode::File {
+        let path = file_path
+            .as_deref()
+            .ok_or_else(|| io::Error::other("--file requires a path"))?;
+        Some(file::file_len(path).await?)
     } else {
         None
     };
@@ -165,19 +185,25 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
         return Err(io::Error::other("server rejected handshake"));
     }
 
-    // Negotiate (§3.3). UDP carries bitrate + packet size; TCP leaves them None.
+    // Negotiate (§3.3). Each mode fills only its relevant fields.
     let is_udp = mode == cli::Mode::Udp;
+    let is_file = mode == cli::Mode::File;
     let neg = Negotiate {
-        mode: if is_udp { Mode::Udp } else { Mode::Tcp },
+        mode: match mode {
+            cli::Mode::Tcp => Mode::Tcp,
+            cli::Mode::Udp => Mode::Udp,
+            cli::Mode::File => Mode::File,
+        },
+        // File mode has no fixed window/warm-up; it runs until file_len bytes move.
         duration_secs: opts.duration,
-        warmup_secs: WARMUP_SECS,
+        warmup_secs: if is_file { 0 } else { WARMUP_SECS },
         parallel: opts.parallel,
         buffer_bytes: WRITE_BUF,
         bidir: opts.bidir,
         bitrate_bps: udp_bitrate,
         packet_bytes: is_udp.then_some(opts.packet),
-        file_len: None,
-        null_source: None,
+        file_len,
+        null_source: is_file.then_some(opts.null_source),
     };
     proto::write_msg(&mut ctrl, &Msg::Negotiate(neg.clone())).await?;
     let Msg::Start(start) = proto::read_msg(&mut ctrl).await? else {
@@ -195,7 +221,18 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
     match mode {
         cli::Mode::Tcp => tcp::drive(host, &start, &neg, args.format, opts.json).await?,
         cli::Mode::Udp => udp::drive(host, &start, &neg, args.format, opts.json).await?,
-        cli::Mode::File => unreachable!("file rejected above"),
+        cli::Mode::File => {
+            file::drive(
+                host,
+                &start,
+                &neg,
+                file_path.as_deref(),
+                opts.null_source,
+                args.format,
+                opts.json,
+            )
+            .await?
+        }
     }
 
     // Tell the server the window is over and read its authoritative result.
@@ -215,6 +252,18 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
             result.packets_expected.unwrap_or(0),
             result.loss_ratio.unwrap_or(0.0) * 100.0,
             result.jitter_ms.unwrap_or(0.0),
+        );
+    } else if is_file {
+        let src = if opts.null_source {
+            "memory (--null-source)"
+        } else {
+            "disk"
+        };
+        println!(
+            "\nFile transfer: {} over {:.3}s | {} bytes from {src}",
+            args.format.render(result.bits_per_sec),
+            result.duration_secs,
+            result.bytes,
         );
     } else {
         println!(

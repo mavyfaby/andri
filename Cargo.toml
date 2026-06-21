@@ -18,6 +18,7 @@ tokio = { version = "1.52.3", features = [
     "rt-multi-thread", # multi-threaded scheduler (parallel streams)
     "macros",          # #[tokio::main], tokio::select!
     "net",             # TcpListener/TcpStream, UdpSocket
+    "fs",              # async file read for file-transfer mode
     "io-util",         # AsyncReadExt/AsyncWriteExt for the hot loops
     "time",            # interval/timeout for UDP pacing + handshake timeouts
     "sync",            # mpsc/oneshot for task coordination + shutdown
