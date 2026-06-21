@@ -150,6 +150,32 @@ pub async fn run_sampler(
 mod tests {
     use super::*;
 
+    /// bits/s = bytes * 8 / secs.
+    #[test]
+    fn bits_per_sec_basic() {
+        assert_eq!(bits_per_sec(1_000, 1.0), 8_000.0);
+        assert_eq!(bits_per_sec(125_000_000, 1.0), 1e9); // 125 MB/s = 1 Gbit/s
+    }
+
+    /// Zero or negative duration must not divide-by-zero; it returns 0.0.
+    #[test]
+    fn bits_per_sec_guards_zero_duration() {
+        assert_eq!(bits_per_sec(1_000, 0.0), 0.0);
+        assert_eq!(bits_per_sec(1_000, -1.0), 0.0);
+    }
+
+    /// Preview shows a hex sample and a distinct-byte count for entropy.
+    #[test]
+    fn payload_preview_format() {
+        let mut buf = [0u8; 256];
+        fill_random(&mut buf, 1);
+        let s = payload_preview(&buf);
+        assert!(s.starts_with(|c: char| c.is_ascii_hexdigit()));
+        assert!(s.contains("distinct byte values"));
+        // All-zeros must read as 1 distinct value (compressible — the bad case).
+        assert!(payload_preview(&[0u8; 64]).contains("1/256 distinct"));
+    }
+
     /// Same seed must produce identical bytes (reproducible/verifiable payload).
     #[test]
     fn fill_random_is_deterministic() {

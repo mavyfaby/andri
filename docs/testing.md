@@ -14,6 +14,8 @@
 - [Why `Cursor` instead of a real socket](#why-cursor-instead-of-a-real-socket)
 - [Tests by module](#tests-by-module)
   - [`src/proto.rs` — control protocol](#srcprotors--control-protocol)
+  - [`src/cli.rs` — CLI parsing & formatting](#srcclirs--cli-parsing--formatting)
+  - [`src/meter.rs` — metering & payload](#srcmeterrs--metering--payload)
 - [What is intentionally *not* tested](#what-is-intentionally-not-tested)
 - [Adding tests for a new module](#adding-tests-for-a-new-module)
 
@@ -72,6 +74,27 @@ These verify the control-protocol wire format from
 | `frame_has_be_length_prefix` | Frames a `Msg::Run`, then checks the first 4 bytes decode (big-endian) to exactly the payload length, and that the payload is the literal JSON `{"type":"Run"}`. | Locks the §2 wire contract: a 4-byte **big-endian** length prefix + JSON body. A future refactor that changed byte order or framing would fail here. |
 | `oversized_declared_length_is_rejected` | Hand-crafts a frame whose declared length is `MAX_FRAME_BYTES + 1`, then calls `read_msg`. | Confirms the abuse guard (§2): an oversized declared length is rejected with `InvalidData` **before** the body is read, so a malicious peer can't make us allocate a huge buffer. |
 | `enum_wire_tokens` | Serializes `Mode`, `RoleDir`, and `ProtoError` and asserts the exact JSON tokens (e.g. `"tcp"`, `"send"`, `"data_connect_failed"`). | Pins the on-wire spelling of enums. Renaming a Rust variant without thinking would silently change the protocol; this test makes that change loud. |
+
+### `src/cli.rs` — CLI parsing & formatting
+
+| Test | What it does | Why it matters |
+|---|---|---|
+| `format_render_units` | Renders `1e9` bits/s in all four `--format` units and asserts the exact strings (`1000000000 bit/s`, `125000000 byte/s`, `1000.00 Mbps`, `1.00 Gbps`). | Locks the unit conversions a user reads — a wrong divisor would misreport throughput. |
+| `mode_flags_selected` | Resolves `ModeFlags` for each flag combination, asserting none → `None`, and each flag → its `Mode`. | Guards the **explicit-mode** rule: there is no default, so absence must yield `None` (the client then errors). |
+| `mode_display_is_uppercase` | Asserts `Mode` displays as `TCP`/`UDP`/`FILE`. | Pins the banner casing (not Rust's `Debug` `Tcp`/`Udp`/`File`). |
+| `cli_definition_is_valid` | Runs clap's `Command::debug_assert()`. | Catches arg/group misconfiguration (conflicts, duplicate flags) at test time instead of first run. |
+
+### `src/meter.rs` — metering & payload
+
+| Test | What it does | Why it matters |
+|---|---|---|
+| `bits_per_sec_basic` | Checks `bits_per_sec` (e.g. 125 MB/s → 1 Gbit/s). | The core throughput conversion every result depends on. |
+| `bits_per_sec_guards_zero_duration` | Passes 0.0 and negative durations. | Prevents divide-by-zero / NaN in the result when a window is degenerate. |
+| `payload_preview_format` | Checks the hex sample + distinct-byte count, and that all-zeros reads as `1/256 distinct`. | Confirms the `--verbose` payload check can actually distinguish incompressible random data from zeros. |
+| `fill_random_is_deterministic` | Same seed → identical bytes. | Reproducible/verifiable payload (seeded from `server_seed`). |
+| `fill_random_varies_by_seed` | Different seeds → different bytes. | Parallel streams don't send byte-identical buffers. |
+| `fill_random_is_high_entropy` | A 4 KiB fill hits >200 distinct byte values. | The payload is incompressible (won't be inflated by compressing links). |
+| `fill_random_handles_remainder` | Fills a non-multiple-of-8 length. | The 8-byte-chunked fill must cover the tail bytes. |
 
 ## What is intentionally *not* tested here
 

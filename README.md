@@ -85,6 +85,47 @@ andri is built on published IETF standards so results are defensible and compara
 
 > We distinguish what we implement *exactly* (RFC 3550 jitter) from what we are *informed by* (RFC 2544 and 6349 are methodologies/frameworks, not conformance targets — RFC 2544 in particular targets lab device testing, not host-to-host LAN tests). See DESIGN.md for the honest per-claim strength.
 
+## Project structure
+
+```
+andri/
+├── Cargo.toml            # crate metadata, deps, release profile
+├── README.md             # this file
+├── DESIGN.md             # architecture & decisions (source of truth)
+├── LICENSE               # Apache-2.0
+├── src/
+│   ├── main.rs           # entry point; parse args, dispatch server/client
+│   ├── cli.rs            # clap CLI (--server/--client, mode & format flags)
+│   ├── proto.rs          # control-protocol messages + length-delimited framing
+│   ├── session.rs        # shared control handshake (both roles)
+│   ├── meter.rs          # byte counters, per-second sampler, payload fill
+│   └── modes/            # per-mode data paths
+│       ├── tcp.rs        #   TCP throughput (implemented)
+│       ├── udp.rs        #   UDP loss/jitter (stub — v1 TODO)
+│       └── file.rs       #   file transfer (stub — v1 TODO)
+└── docs/                 # detailed design specs (RFC-grounded)
+    ├── protocol.md  cli.md  tcp.md  udp.md  file.md
+    ├── web.md            #   browser dashboard (deferred to v2)
+    └── testing.md        #   test strategy & project-wide test index
+```
+
+Shared, mode-agnostic code (`proto`, `session`, `meter`, `cli`) lives at the top of
+`src/`; only the per-mode data movement lives under `modes/`.
+
+## Testing
+
+```sh
+cargo test            # run all unit tests
+cargo test cli        # filter to one module's tests (e.g. cli, proto, meter)
+cargo test -- --nocapture   # show println!/dbg! output
+cargo clippy --all-targets  # lint
+cargo fmt --check           # formatting check
+```
+
+Tests are pure and need no network — the control framing is exercised against an
+in-memory stream rather than a socket. See [docs/testing.md](docs/testing.md) for the
+test strategy and a per-module index of every test and what it guards.
+
 ## Author
 
 [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;

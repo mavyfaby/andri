@@ -69,13 +69,24 @@ pub struct Role {
     pub client: Option<String>,
 }
 
-/// Which measurement mode the client runs. `--tcp` is the default if none given.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Which measurement mode the client runs. Selected explicitly; no default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    #[default]
     Tcp,
     Udp,
     File,
+}
+
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Mode::Tcp => "TCP",
+            Mode::Udp => "UDP",
+            Mode::File => "FILE",
+        };
+
+        f.write_str(s)
+    }
 }
 
 /// Client-only run options. Ignored on the server, which takes its parameters
@@ -102,12 +113,15 @@ pub struct ClientOpts {
     pub json: bool,
 }
 
-/// Mode selection: at most one of `--tcp` / `--udp` / `--file <path>`.
-/// None means TCP (the default).
+/// Mode selection: exactly one of `--tcp` / `--udp` / `--file <path>`.
+///
+/// The clap group is *not* marked `required`, because these flags flatten into
+/// the top-level `Cli` and the server role takes no mode. The "exactly one"
+/// requirement is enforced for the client after parsing (see `selected`).
 #[derive(Args, Debug)]
 #[group(required = false, multiple = false)]
 pub struct ModeFlags {
-    /// Raw TCP throughput (default).
+    /// Raw TCP throughput.
     #[arg(long)]
     pub tcp: bool,
 
@@ -121,15 +135,80 @@ pub struct ModeFlags {
 }
 
 impl ModeFlags {
-    /// Resolve the selected mode. The clap group guarantees mutual exclusion;
-    /// absence of all flags defaults to TCP.
-    pub fn mode(&self) -> Mode {
-        if self.udp {
-            Mode::Udp
+    /// The explicitly-selected mode, or `None` if no mode flag was given.
+    /// There is no default — the client requires one of `--tcp`/`--udp`/`--file`.
+    pub fn selected(&self) -> Option<Mode> {
+        if self.tcp {
+            Some(Mode::Tcp)
+        } else if self.udp {
+            Some(Mode::Udp)
         } else if self.file.is_some() {
-            Mode::File
+            Some(Mode::File)
         } else {
-            Mode::Tcp
+            None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Format::render` produces the right unit and conversion. 1 Gbit/s = 1e9.
+    #[test]
+    fn format_render_units() {
+        let one_gbit = 1e9;
+        assert_eq!(Format::Bits.render(one_gbit), "1000000000 bit/s");
+        assert_eq!(Format::Bytes.render(one_gbit), "125000000 byte/s");
+        assert_eq!(Format::Mbps.render(one_gbit), "1000.00 Mbps");
+        assert_eq!(Format::Gbps.render(one_gbit), "1.00 Gbps");
+    }
+
+    /// Mode resolves from exactly the flag set; absence yields None (no default).
+    #[test]
+    fn mode_flags_selected() {
+        let none = ModeFlags {
+            tcp: false,
+            udp: false,
+            file: None,
+        };
+        assert_eq!(none.selected(), None);
+
+        let tcp = ModeFlags {
+            tcp: true,
+            udp: false,
+            file: None,
+        };
+        assert_eq!(tcp.selected(), Some(Mode::Tcp));
+
+        let udp = ModeFlags {
+            tcp: false,
+            udp: true,
+            file: None,
+        };
+        assert_eq!(udp.selected(), Some(Mode::Udp));
+
+        let file = ModeFlags {
+            tcp: false,
+            udp: false,
+            file: Some("x.iso".into()),
+        };
+        assert_eq!(file.selected(), Some(Mode::File));
+    }
+
+    /// Modes display uppercase in the banner (TCP/UDP/FILE, not Debug casing).
+    #[test]
+    fn mode_display_is_uppercase() {
+        assert_eq!(Mode::Tcp.to_string(), "TCP");
+        assert_eq!(Mode::Udp.to_string(), "UDP");
+        assert_eq!(Mode::File.to_string(), "FILE");
+    }
+
+    /// The clap definition itself is internally consistent (catches arg conflicts
+    /// / duplicate flags at test time rather than first run).
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
     }
 }

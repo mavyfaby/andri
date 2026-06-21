@@ -41,11 +41,12 @@ andri --client <host> [mode] [options]
 
 ## 3. Mode selection (client)
 
-Exactly one mode; `--tcp` is the default if none is given.
+Exactly one mode is **required** — there is no default. The client errors if none
+of `--tcp` / `--udp` / `--file <path>` is given.
 
 | Flag | Mode doc | Description |
 |---|---|---|
-| `--tcp` | [tcp.md](tcp.md) | Raw TCP throughput (default). |
+| `--tcp` | [tcp.md](tcp.md) | Raw TCP throughput. |
 | `--udp` | [udp.md](udp.md) | UDP throughput + loss/jitter. |
 | `--file <path>` | [file.md](file.md) | Real file transfer from `<path>`. |
 

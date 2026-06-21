@@ -104,14 +104,18 @@ async fn reject(ctrl: &mut TcpStream, err: ProtoError) -> io::Result<()> {
 /// Connect, negotiate, run the data path, print results.
 pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
     let opts = &args.client_opts;
+    // A mode must be chosen explicitly — no default.
+    let mode = opts.mode.selected().ok_or_else(|| {
+        io::Error::other("a mode is required: pass one of --tcp, --udp, or --file <path>")
+    })?;
     // v1 implements TCP; UDP/file report their own not-yet-implemented error.
-    match opts.mode.mode() {
+    match mode {
         cli::Mode::Tcp => {}
         cli::Mode::Udp => return Err(crate::modes::udp::not_implemented()),
         cli::Mode::File => return Err(crate::modes::file::not_implemented()),
     }
     if !opts.json {
-        print_config(args, host);
+        print_config(args, host, mode);
     }
 
     // Control connection + greeting (§3.1/§3.2).
@@ -181,11 +185,11 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
 }
 
 /// Print an ffmpeg-style banner of the resolved run options (to stderr).
-fn print_config(args: &Cli, host: &str) {
+fn print_config(args: &Cli, host: &str, mode: cli::Mode) {
     let opts = &args.client_opts;
     eprintln!("andri {VERSION} — client");
     eprintln!("  target     {host}:{}", args.port);
-    eprintln!("  mode       {:?}", opts.mode.mode());
+    eprintln!("  mode       {mode}");
     eprintln!(
         "  duration   {}s (+ {WARMUP_SECS}s warm-up, excluded)",
         opts.duration
