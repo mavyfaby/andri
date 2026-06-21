@@ -8,8 +8,6 @@
 
 ![andri demo](docs/demo.gif)
 
-▶ [Interactive demo](https://asciinema.org/a/3IOiboniYF9ZKJO4) · the disk-vs-network gap in one run.
-
 > Demo on Apple M5 (10-core), 16 GB, macOS 26.5.1 (arm64). Numbers are **loopback**
 > (`127.0.0.1`) — this machine's memory/kernel-copy speed, **not** a network link. On a
 > real LAN, andri reports your actual throughput (e.g. ~0.94 Gbit/s on gigabit Ethernet).

@@ -60,9 +60,9 @@ smoke: release
     ./target/release/andri --client 127.0.0.1 --file /tmp/andri-smoke.bin
     rm -f /tmp/andri-smoke.bin
 
-# Scripted demo for screen-recording (asciinema/GIF). Paced with pauses and
-# narration so the disk-vs-network story reads clearly on screen.
-# Record with:  asciinema rec demo.cast -c "just demo"
+# Scripted demo for screen-recording. Paced with pauses and narration so the
+# disk-vs-network story reads clearly on screen. Run it while recording (e.g.
+# with Screen Studio) to capture a clean take.
 demo: release
     #!/usr/bin/env bash
     set -euo pipefail
@@ -91,18 +91,6 @@ demo: release
     say "The gap between these two = your disk, not your wire."
     ./target/release/andri --client 127.0.0.1 --file /tmp/andri-demo.bin --null-source --format gbps
     sleep 2
-
-# Generate docs/demo.gif from the asciinema recording for the README.
-# Needs agg (brew install agg). Override CAST=<id> for a different recording.
-CAST := "3IOiboniYF9ZKJO4"
-gif:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    command -v agg >/dev/null || { echo "install agg first: brew install agg" >&2; exit 1; }
-    mkdir -p docs
-    curl -fsSL "https://asciinema.org/a/{{CAST}}.cast" -o /tmp/andri-demo.cast
-    agg --theme monokai /tmp/andri-demo.cast docs/demo.gif
-    echo "wrote docs/demo.gif"
 
 # Verify the crate packages cleanly for crates.io (no upload).
 publish-dry:
