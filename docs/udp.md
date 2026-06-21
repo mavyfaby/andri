@@ -30,12 +30,17 @@ Direction follows the session: by default the client sends and the server receiv
 Every datagram begins with a fixed 16-byte header, **little-endian**, followed by
 arbitrary padding to reach `packet_bytes`:
 
-```
- offset  size  field
- ──────  ────  ─────────────────────────────────────────────
-   0      8    seq         u64  monotonic sequence, starts at 0
-   8      8    send_ns     u64  sender's monotonic clock, nanoseconds
-  16      …    padding     fill to packet_bytes (uninspected)
+| Offset | Size | Field | Notes |
+|---|---|---|---|
+| 0 | 8 | `seq` (u64) | monotonic sequence, starts at 0 |
+| 8 | 8 | `send_ns` (u64) | sender's monotonic clock, nanoseconds |
+| 16 | … | padding | fill to `packet_bytes` (uninspected) |
+
+```mermaid
+packet-beta
+  0-63: "seq: u64 (little-endian)"
+  64-127: "send_ns: u64 (little-endian)"
+  128-191: "padding → packet_bytes (uninspected, continues)"
 ```
 
 - **Little-endian** here is deliberate and independent of the big-endian *control*

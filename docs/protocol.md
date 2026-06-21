@@ -22,20 +22,41 @@ data connections it sets up.
 
 ## 1. Connection model
 
-```
-client                                          server (--server, listening on :5201)
-  │                                                  │
-  │  ── TCP connect to control port ───────────────▶ │   accept
-  │  ── Hello ─────────────────────────────────────▶ │   version check
-  │  ◀──────────────────────────────────── Welcome ─ │
-  │  ── Negotiate { mode, params } ────────────────▶ │   validate + bind data listener
-  │  ◀────────────────────── Start { data_port } ──── │
-  │  ══ open N data connections to data_port ══════▶ │   accept N
-  │  ── Run ───────────────────────────────────────▶ │   begin measurement window
-  │            …data flows for `duration`…           │
-  │  ── Stop ──────────────────────────────────────▶ │   freeze counters
-  │  ◀──────────────────────────── Result { ... } ─── │
-  │  ◀ close control connection ────────────────────▶ │
+The TCP-mode session flow (as implemented). The **control** and **data** connections are
+distinct TCP connections; the server's authoritative received-byte `Result` excludes the
+warm-up window:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client (--client)
+    participant S as Server (--server)
+
+    Note over C,S: Control connection (TCP :5201)
+    C->>S: TCP connect (control)
+    C->>S: Hello { protocol_version, nonce }
+    S->>C: Welcome { accepted, nonce }
+    C->>S: Negotiate { mode, duration, parallel, … }
+    Note right of S: bind ephemeral data listener
+    S->>C: Start { data_port, server_seed }
+
+    Note over C,S: Data connection(s) — N parallel streams
+    C->>S: open N TCP streams → data_port
+    C->>S: Run
+
+    rect rgb(245,245,245)
+    Note over C,S: warm-up window (sent, but excluded from result)
+    C-->>S: stream bytes…
+    end
+    rect rgb(230,242,255)
+    Note over C,S: measurement window (duration)
+    C-->>S: stream bytes… (server counts via AtomicU64)
+    end
+
+    C->>S: Stop
+    Note right of S: bytes/time = (final − warm-up baseline)
+    S->>C: Result { bits_per_sec, samples[…] }
+    Note over C,S: control connection closes
 ```
 
 - **Control port** default `5201` (TCP), configurable via `--port`. 5201 sits in the
@@ -55,11 +76,10 @@ client                                          server (--server, listening on :
 Control messages are **length-delimited JSON**
 ([RFC 8259](https://www.rfc-editor.org/info/rfc8259)):
 
-```
-┌────────────────────────┬───────────────────────────────┐
-│  length: u32 (4 bytes) │  payload: JSON (length bytes) │
-│  big-endian / network  │  UTF-8, RFC 8259              │
-└────────────────────────┴───────────────────────────────┘
+```mermaid
+packet-beta
+  0-31: "length: u32 (big-endian / network order)"
+  32-95: "payload: JSON (length bytes, UTF-8, RFC 8259) — variable, continues"
 ```
 
 - `length` is the byte count of the JSON payload that follows, encoded **big-endian**
@@ -225,20 +245,19 @@ enum ProtoError {
 Both ends track session state. A message valid in one state **MUST** be treated as an
 `UnexpectedMessage` error in another.
 
-```
-        ┌──────────┐  Hello/Welcome ok   ┌──────────────┐
-  ─────▶│  Greeting │ ──────────────────▶ │  Negotiating  │
-        └──────────┘                      └──────────────┘
-              │ version mismatch                  │ Start sent/recv
-              ▼                                    ▼
-          [ Closed ] ◀── Error ───────────  ┌──────────────┐
-              ▲                              │  Connecting   │  (data conns opening)
-              │                              └──────────────┘
-              │                                    │ Run
-              │            Stop / timeout           ▼
-              │           ┌──────────────┐   ┌──────────────┐
-              └───────────│  Reporting    │◀──│   Running     │
-                Result    └──────────────┘   └──────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> Greeting
+    Greeting --> Negotiating: Hello/Welcome ok
+    Greeting --> Closed: version mismatch / Error
+    Negotiating --> Connecting: Start sent/recv
+    Negotiating --> Closed: Error
+    Connecting --> Running: Run (data conns open)
+    Connecting --> Closed: Error
+    Running --> Reporting: Stop / timeout
+    Running --> Closed: Error
+    Reporting --> Closed: Result sent
+    Closed --> [*]
 ```
 
 | State | Client may send | Server may send |

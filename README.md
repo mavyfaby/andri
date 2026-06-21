@@ -8,6 +8,8 @@
 
 > **Status: pre-release / in development.** The design is settled (see [DESIGN.md](DESIGN.md)); the implementation is being built mode by mode. Commands and flags below describe the intended interface and may not all work yet.
 
+**Author:** [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
+
 ## Why andri
 
 Most LAN benchmarks measure one thing. `iperf3` gives you raw socket throughput; file-copy tools give you end-to-end speed; few give you UDP loss and jitter without ceremony. `andri` puts all three in a single binary and lets you isolate **network-only** performance from **end-to-end file copy** with a flag — so you can tell whether a slow transfer is the wire or the disk.
