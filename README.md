@@ -104,7 +104,11 @@ andri/
 │       ├── udp.rs        #   UDP loss/jitter (stub — v1 TODO)
 │       └── file.rs       #   file transfer (stub — v1 TODO)
 └── docs/                 # detailed design specs (RFC-grounded)
-    ├── protocol.md  cli.md  tcp.md  udp.md  file.md
+    ├── protocol.md       #   control protocol & wire format
+    ├── cli.md            #   CLI reference
+    ├── tcp.md            #   TCP mode design
+    ├── udp.md            #   UDP mode design
+    ├── file.md           #   file-transfer mode design
     ├── web.md            #   browser dashboard (deferred to v2)
     └── testing.md        #   test strategy & project-wide test index
 ```
