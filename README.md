@@ -37,15 +37,25 @@ cargo build --release
 
 ## Usage
 
-`andri` runs `iperf3`-style: start a server on one host, point a client at it.
+`andri` runs `iperf3`-style: start a server on one host, then connect either with the
+`andri` client binary (full raw modes) or from a **web browser** (zero install).
 
 ```sh
 # On the receiving host:
 andri --server
+```
 
-# On the sending host:
+**From another machine with andri installed (full modes, incl. raw UDP):**
+
+```sh
 andri --client 192.168.1.10
 ```
+
+**From any device with a browser (no install):** open `http://192.168.1.10:5201/`.
+The browser supports file transfer and WebSocket-based TCP throughput; raw UDP
+loss/jitter requires the client binary. Browser TCP results are labeled "WebSocket
+throughput" so they are never mistaken for raw-socket figures. See
+[docs/web.md](docs/web.md).
 
 ### Modes
 
@@ -84,6 +94,11 @@ andri is built on published IETF standards so results are defensible and compara
 ## Author
 
 [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
+
+## Acknowledgements
+
+Design docs drafted with assistance from [Claude](https://www.anthropic.com/claude); all
+architecture and design decisions are the author's.
 
 ## License
 

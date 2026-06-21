@@ -45,6 +45,9 @@ client                                   server
 
 ## Control protocol messages
 
+> **Full spec:** [docs/protocol.md](docs/protocol.md) — message framing, complete schema,
+> session state machine, timeouts, and RFC grounding. The sketch below is the overview.
+
 Serde structs/enums, JSON to start. Sketch:
 
 ```rust
@@ -80,6 +83,8 @@ struct Result {
 ## Per-mode notes & gotchas
 
 ### TCP throughput
+> **Full spec:** [docs/tcp.md](docs/tcp.md). Overview below.
+
 - Reuse a **single buffer** in the hot loop — no per-iteration allocation.
 - Default buffer **64 KiB**.
 - Include a **warm-up period** whose bytes are excluded from the measurement, so TCP
@@ -87,6 +92,9 @@ struct Result {
 - Support **parallel streams** and **configurable socket buffers** (`SO_SNDBUF`/`SO_RCVBUF`).
 
 ### UDP throughput + loss/jitter
+> **Full spec:** [docs/udp.md](docs/udp.md) — datagram layout, pacing math, RFC 3550
+> jitter, RFC 7680 loss. Overview below.
+
 - **Pace the sender — don't busy-spin.** For high rates, send small bursts per
   `tokio::time::interval` tick:
   `packets_per_tick = bitrate ÷ packet_size ÷ ticks_per_sec`.
@@ -96,6 +104,9 @@ struct Result {
   algorithm.
 
 ### File transfer
+> **Full spec:** [docs/file.md](docs/file.md). CLI surface: [docs/cli.md](docs/cli.md).
+> Overview below.
+
 - Read a real file from disk → stream → write on the far end.
 - `--null-source` flag sources from in-memory / null instead of disk, to **isolate the
   network from disk I/O**.
@@ -106,8 +117,35 @@ struct Result {
 - **Long enough** default duration (**10s**) to average out transients.
 - **Bidirectional** means send + receive **simultaneously**, not back-to-back.
 
+## Client model
+
+andri supports **two client surfaces** against one server:
+
+1. **Thin client binary** (`andri --client <ip>`) — speaks the custom TCP control protocol
+   ([docs/protocol.md](docs/protocol.md)) and can run **all three modes**, including raw
+   UDP loss/jitter.
+2. **Browser** — the server hosts an embedded HTTP + WebSocket dashboard
+   ([docs/web.md](docs/web.md)). Zero install; good for compatibility and ease of use.
+
+The browser path exists for reach, but it is **deliberately constrained for honesty**:
+
+- **No raw UDP.** Browsers cannot open raw UDP sockets, so the per-datagram seq/timestamp
+  stamping behind RFC 3550 jitter and RFC 7680 loss is impossible. UDP mode is disabled in
+  the browser and clearly marked as requiring the client binary.
+- **TCP is labeled "WebSocket throughput," not raw TCP.** It is TCP underneath (WS rides on
+  TCP), but without `SO_SNDBUF` tuning or raw parallel streams — so it must never be
+  presented as an `iperf3`-equivalent raw number.
+- **File transfer is a true end-to-end measurement** over HTTP and needs no caveat.
+
+| Mode | Client binary | Browser |
+|---|---|---|
+| TCP throughput | ✅ raw | ⚠️ WebSocket (labeled) |
+| UDP loss/jitter | ✅ raw | ❌ unavailable |
+| File transfer | ✅ | ✅ |
+
 ## Open / deferred decisions
 
+- Whether the server aggregates binary-client and browser runs into one results view.
 - Control serialization may move from JSON to `bincode`/`postcard`.
 - Whether data-stream byte reporting uses `AtomicU64` sampling vs. `mpsc` channels.
 - UDP default packet size.
