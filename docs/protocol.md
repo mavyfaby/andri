@@ -133,7 +133,7 @@ enum Mode { Tcp, Udp, File }
 struct Negotiate {
     mode: Mode,
     duration_secs: u64,      // measurement window, default 10
-    warmup_secs: u64,        // excluded from results, default 1 (TCP/file)
+    warmup_secs: u64,        // excluded from results; default 1 (TCP/UDP), 0 (file)
     parallel: u32,           // data connections, default 1
     buffer_bytes: usize,     // per-stream buffer, default 65536
     bidir: bool,             // send + receive simultaneously
@@ -173,6 +173,8 @@ computes `Result`. The server also runs an independent duration timer as a safet
 ### 3.6 Result (server → client)
 
 ```rust
+enum Role { Send, Receive }  // direction this result describes; both for bidir
+
 struct Result {
     role: Role,              // which direction this result describes
     bytes: u64,              // measured bytes, excluding warm-up
@@ -185,6 +187,16 @@ struct Result {
     packets_lost: Option<u64>,   // one-way loss, per RFC 7680
     loss_ratio: Option<f64>,
     jitter_ms: Option<f64>,      // interarrival jitter, RFC 3550 §6.4.1
+    samples: Vec<Sample>,        // per-second time series (may be empty)
+}
+
+struct Sample {
+    t_secs: f64,                 // seconds since Run, monotonic
+    bytes: u64,                  // bytes in this 1s interval (aggregate)
+    bits_per_sec: f64,
+    // UDP only:
+    packets_lost: Option<u64>,
+    jitter_ms: Option<f64>,
 }
 ```
 
@@ -273,16 +285,21 @@ optional fields on write, consistent with the interoperability spirit of RFC 825
 `Hello`/`Welcome` exchange is the single negotiation point; there is no per-message
 versioning.
 
-## 8. Open questions
+## 8. Decisions & deferrals
 
-- **Authentication / encryption** for untrusted networks: wrap the control (and data)
-  connection in TLS 1.3 ([RFC 8446](https://www.rfc-editor.org/info/rfc8446)), or a
-  simpler shared-token check. Out of scope for the trusted-LAN v1.
-- **Binary serialization**: once the schema stabilizes, the JSON payload **MAY** be
-  swapped for a compact binary codec — CBOR
-  ([RFC 8949](https://www.rfc-editor.org/info/rfc8949)) as a standards-based option, or
-  `bincode`/`postcard` for Rust-native compactness. The framing (§2) is unaffected.
-- Whether `Result` should also carry per-second time-series samples, or only the summary.
+**v1 (decided):**
+- **Serialization is JSON** ([RFC 8259](https://www.rfc-editor.org/info/rfc8259)). The
+  length-prefixed framing (§2) is codec-agnostic, so a later move to CBOR
+  ([RFC 8949](https://www.rfc-editor.org/info/rfc8949)) or `bincode`/`postcard` changes
+  only the payload, not the wire framing.
+- **`Result` carries per-second time-series.** In addition to the summary fields, `Result`
+  includes an optional `samples[]` array of once-per-second readings (the same data the
+  live readout samples). Captured from day one so it never needs a schema retrofit.
+
+**Deferred to v2:**
+- **Authentication / encryption** for untrusted networks (TLS 1.3,
+  [RFC 8446](https://www.rfc-editor.org/info/rfc8446), or a shared-token check). v1 targets
+  a trusted LAN and runs plaintext.
 
 ## References
 

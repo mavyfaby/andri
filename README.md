@@ -37,25 +37,19 @@ cargo build --release
 
 ## Usage
 
-`andri` runs `iperf3`-style: start a server on one host, then connect either with the
-`andri` client binary (full raw modes) or from a **web browser** (zero install).
+`andri` runs `iperf3`-style: start a server on one host, point a client at it.
 
 ```sh
 # On the receiving host:
 andri --server
-```
 
-**From another machine with andri installed (full modes, incl. raw UDP):**
-
-```sh
+# On another machine with andri installed:
 andri --client 192.168.1.10
 ```
 
-**From any device with a browser (no install):** open `http://192.168.1.10:5201/`.
-The browser supports file transfer and WebSocket-based TCP throughput; raw UDP
-loss/jitter requires the client binary. Browser TCP results are labeled "WebSocket
-throughput" so they are never mistaken for raw-socket figures. See
-[docs/web.md](docs/web.md).
+> A zero-install **browser dashboard** (served by the same binary) is planned for v2 —
+> see [docs/web.md](docs/web.md). v1 has no browser client; you run the `andri` binary on
+> both ends (`--server` and `--client`).
 
 ### Modes
 

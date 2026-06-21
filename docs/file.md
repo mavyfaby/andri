@@ -93,10 +93,14 @@ To separate network from disk, two independent knobs:
 - **Receiver slower disk than sender**: the measured speed reflects the slower side — which
   is the honest end-to-end answer.
 
-## 8. Open questions
+## 8. Decisions & deferrals
 
-- Directory/multi-file transfer, or single-file only for v1?
-- Whether to support resume/range-restart for very large transfers.
+**v1 (decided):**
+- **Single-file transfer only.** One file per run.
+
+**Deferred to v2:**
+- Directory / multi-file transfer (traversal, ordering, per-file accounting).
+- Resume / range-restart for very large transfers.
 
 ## References
 

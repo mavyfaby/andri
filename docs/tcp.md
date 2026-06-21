@@ -76,10 +76,17 @@ small, so early throughput understates the steady-state rate.
 - **A stream dies mid-test**: the test reports partial aggregate and flags the degraded
   stream count rather than aborting, unless all streams drop.
 
-## 7. Open questions
+## 7. Decisions & deferrals
 
-- Expose per-second per-stream time series, or only aggregate summary?
-- Whether to auto-tune socket buffers from a measured RTT, or leave fully manual.
+**v1 (decided):**
+- **Per-second time series is captured** (aggregate across streams) and returned in
+  `Result.samples[]` ([protocol.md](protocol.md) §3.6), alongside the summary.
+- **Byte counting is via a per-stream `AtomicU64`**, sampled once per second by the
+  control side — lock-free, no channel machinery.
+
+**Deferred to v2:**
+- Auto-tuning socket buffers from a measured RTT (v1 leaves `--sndbuf`/`--rcvbuf` manual).
+- Per-stream (not just aggregate) time series in the output.
 
 ## References
 

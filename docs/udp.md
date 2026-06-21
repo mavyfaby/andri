@@ -145,11 +145,17 @@ milliseconds.
   `packet_bytes` that fragment are allowed but flagged in docs as measuring fragmented
   behavior, not raw datagram behavior.
 
-## 7. Open questions
+## 7. Decisions & deferrals
 
-- Expose per-second loss/jitter time series, or only the summary?
-- Optionally set the DF bit and report path-MTU effects.
-- Distinguish network loss from local kernel-buffer drops in the report.
+**v1 (decided):**
+- **Default `packet_bytes` = 1472** (1500 MTU − 20 IP − 8 UDP) to avoid fragmentation on
+  a standard Ethernet LAN.
+- **Per-second time series is captured** (throughput, loss, jitter) and returned in
+  `Result.samples[]` ([protocol.md](protocol.md) §3.6), alongside the summary.
+
+**Deferred to v2:**
+- Setting the DF bit and reporting path-MTU effects.
+- Distinguishing network loss from local kernel-buffer (`SO_RCVBUF`) drops in the report.
 
 ## References
 

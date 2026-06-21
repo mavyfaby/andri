@@ -30,8 +30,8 @@ Every session has exactly one **control connection** and one or more **data conn
   negotiation, the start signal, and final results as length-delimited JSON messages.
   It stays open for the lifetime of the session.
 - **Data connections** — opened per test. Parallel streams = N `tokio` tasks, each owning
-  its own connection. Each task reports its byte count via an `AtomicU64` (or `mpsc`),
-  sampled once per second on the control side for the live readout.
+  its own connection. Each task reports its byte count via an `AtomicU64`, sampled once
+  per second on the control side for the live readout.
 
 ```
 client                                   server
@@ -124,8 +124,9 @@ andri supports **two client surfaces** against one server:
 1. **Thin client binary** (`andri --client <ip>`) — speaks the custom TCP control protocol
    ([docs/protocol.md](docs/protocol.md)) and can run **all three modes**, including raw
    UDP loss/jitter.
-2. **Browser** — the server hosts an embedded HTTP + WebSocket dashboard
-   ([docs/web.md](docs/web.md)). Zero install; good for compatibility and ease of use.
+2. **Browser** *(v2 — deferred)* — the server will host an embedded HTTP + WebSocket
+   dashboard ([docs/web.md](docs/web.md)). Zero install; good for compatibility and ease
+   of use. Not part of v1 (see v1 scope / deferrals below).
 
 The browser path exists for reach, but it is **deliberately constrained for honesty**:
 
@@ -143,12 +144,27 @@ The browser path exists for reach, but it is **deliberately constrained for hone
 | UDP loss/jitter | ✅ raw | ❌ unavailable |
 | File transfer | ✅ | ✅ |
 
-## Open / deferred decisions
+## v1 scope (decided)
 
-- Whether the server aggregates binary-client and browser runs into one results view.
-- Control serialization may move from JSON to `bincode`/`postcard`.
-- Whether data-stream byte reporting uses `AtomicU64` sampling vs. `mpsc` channels.
-- UDP default packet size.
+v1 is the **client binary + three raw modes**, nothing more:
+
+- **Modes:** raw TCP, UDP (loss/jitter), single-file transfer, plus the network-only vs.
+  end-to-end isolation flag.
+- **Reporting:** summary **and** per-second time series (`Result.samples[]`), in bits/s
+  and bytes/s, with a live once-per-second readout and `--json`.
+- **Mechanics:** JSON control serialization; per-stream `AtomicU64` byte counters sampled
+  once/sec; UDP default packet 1472 bytes; `--server`/`--client` flag-style CLI.
+- **Security:** plaintext, trusted LAN.
+
+## Deferred to v2
+
+- **Web dashboard** (the whole HTTP/WebSocket browser surface — [docs/web.md](docs/web.md)).
+- Results aggregation across client/browser; TLS/auth (control + web); WebRTC UDP.
+- File: multi-file/directory transfer; resume/range-restart.
+- Config file / profiles.
+- UDP: DF bit + path-MTU reporting; network-vs-kernel-drop loss attribution.
+- TCP: RTT-based socket-buffer auto-tuning; per-stream (not just aggregate) time series.
+- Control serialization swap to CBOR/`bincode`/`postcard` (framing already supports it).
 
 ## References
 

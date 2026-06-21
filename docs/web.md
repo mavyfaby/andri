@@ -80,11 +80,16 @@ Live once-per-second readout is pushed server→browser as JSON text frames duri
 | **TCP throughput** | ⚠️ Approximate | "WebSocket throughput" — TCP underneath, framed and untunable. |
 | **UDP loss/jitter** | ❌ Unavailable | Requires the client binary; UI explains why. |
 
-## 6. Open questions
+## 6. Status & deferrals
 
-- Whether the server aggregates browser runs and binary-client runs into one results view.
+> **The entire web dashboard is deferred to v2.** v1 ships the three raw modes via the
+> client binary only. This document is the design for when the dashboard is built; it is
+> not part of the v1 scope. See [DESIGN.md](../DESIGN.md) (Client model).
+
+Deferred to v2 (within the dashboard itself, once it exists):
+- Aggregating browser runs and binary-client runs into one results view.
 - Auth for the HTTP surface on shared LANs (token, or TLS client certs).
-- Whether to add a documented-as-approximate WebRTC UDP mode in a later version.
+- A documented-as-approximate WebRTC UDP mode.
 
 ## References
 

@@ -10,8 +10,8 @@ The key words **MUST**, **SHOULD**, **MAY** are interpreted per
 [RFC 2119](https://www.rfc-editor.org/info/rfc2119) /
 [RFC 8174](https://www.rfc-editor.org/info/rfc8174).
 
-`andri` is one binary with two roles: **server** and **client**. The server also hosts the
-browser dashboard ([docs/web.md](web.md)).
+`andri` is one binary with two roles: **server** and **client**. (A browser dashboard
+([docs/web.md](web.md)) is deferred to v2; v1 has no web interface.)
 
 ## 1. Top-level shape
 
@@ -99,7 +99,7 @@ Exactly one mode; `--tcp` is the default if none is given.
 ## 6. Examples
 
 ```sh
-# Server (also serves the dashboard at http://<host>:5201/)
+# Server (v1: control + data listeners only; browser dashboard is a v2 feature)
 andri --server
 
 # Default 10s raw TCP throughput
@@ -121,10 +121,13 @@ andri --client 192.168.1.10 --file ./ubuntu.iso --null-source
 andri --client 192.168.1.10 --tcp --bidir
 ```
 
-## 7. Open questions
+## 7. Decisions & deferrals
 
-- Subcommand style (`andri server` / `andri client`) vs. the `--server`/`--client` flag
-  style shown here — flag style chosen for now to match `iperf3` muscle memory.
+**v1 (decided):**
+- **Flag style** (`--server` / `--client <ip>`), to match `iperf3` muscle memory — not
+  subcommands.
+
+**Deferred to v2:**
 - A config file / profiles for repeated test setups.
 
 ## References
