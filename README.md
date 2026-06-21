@@ -6,7 +6,13 @@
 
 **Fast, all-in-one LAN speed tester.** Measure TCP throughput, UDP loss/jitter, and real file-transfer speeds — one standards-based, self-contained Rust binary.
 
-> **Status: pre-release / in development.** The design is settled (see [DESIGN.md](DESIGN.md)); the implementation is being built mode by mode. Commands and flags below describe the intended interface and may not all work yet.
+![andri demo](docs/demo.gif)
+
+▶ [Interactive demo](https://asciinema.org/a/3IOiboniYF9ZKJO4) · the disk-vs-network gap in one run.
+
+> Demo on Apple M5 (10-core), 16 GB, macOS 26.5.1 (arm64). Numbers are **loopback**
+> (`127.0.0.1`) — this machine's memory/kernel-copy speed, **not** a network link. On a
+> real LAN, andri reports your actual throughput (e.g. ~0.94 Gbit/s on gigabit Ethernet).
 
 **Author:** [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
 
@@ -19,6 +25,25 @@ Most LAN benchmarks measure one thing. `iperf3` gives you raw socket throughput;
 - **File transfer** — real file read from disk → streamed → written on the far end, with a flag to source from memory and isolate the network from disk I/O.
 
 andri's measurement methodology follows established IETF standards rather than ad-hoc heuristics — see [Standards & Methodology](#standards--methodology).
+
+### How it compares
+
+`andri` doesn't aim to dethrone `iperf3` on raw throughput — `iperf3` is battle-tested and
+highly tuned. andri's point is **breadth in one tool** and the **network-vs-disk
+isolation** no single tool gives you:
+
+| | andri | iperf3 | LAN file copy |
+|---|:---:|:---:|:---:|
+| TCP throughput | ✅ | ✅ | — |
+| UDP loss + jitter | ✅ | ✅ | — |
+| **Real file-transfer speed** | ✅ | — | ✅ |
+| **Network-only vs. end-to-end isolation** (`--null-source`) | ✅ | — | — |
+| Single self-contained binary | ✅ | ✅ | n/a |
+| Standards-grounded (RFC 3550 jitter, etc.) | ✅ | ✅ | — |
+
+The differentiator is the bottom-left quadrant: andri measures the *real* file copy **and**
+the network-only ceiling, so the gap between them tells you whether the disk or the wire is
+your bottleneck — in one run, one tool.
 
 ## Install
 

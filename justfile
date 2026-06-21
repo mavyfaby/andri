@@ -60,6 +60,50 @@ smoke: release
     ./target/release/andri --client 127.0.0.1 --file /tmp/andri-smoke.bin
     rm -f /tmp/andri-smoke.bin
 
+# Scripted demo for screen-recording (asciinema/GIF). Paced with pauses and
+# narration so the disk-vs-network story reads clearly on screen.
+# Record with:  asciinema rec demo.cast -c "just demo"
+demo: release
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkill -f 'target/release/andri' 2>/dev/null || true
+    sleep 0.3
+    ./target/release/andri --server >/tmp/andri-demo.log 2>&1 &
+    SRV=$!
+    trap "kill $SRV 2>/dev/null || true; rm -f /tmp/andri-demo.bin" EXIT
+    sleep 0.5
+    say() { printf '\n\033[1;36m# %s\033[0m\n' "$1"; sleep 2; }
+
+    say "andri — one tool, three measurements. First, raw TCP throughput:"
+    ./target/release/andri --client 127.0.0.1 --tcp -d 3 --format gbps
+    sleep 2
+
+    say "UDP — same link, but now with packet loss and jitter:"
+    ./target/release/andri --client 127.0.0.1 --udp --bitrate 1G -d 3 --format gbps
+    sleep 2
+
+    say "Now the differentiator. A real file transfer — includes disk read:"
+    head -c 2147483648 /dev/urandom > /tmp/andri-demo.bin
+    ./target/release/andri --client 127.0.0.1 --file /tmp/andri-demo.bin --format gbps
+    sleep 2
+
+    say "Same file, --null-source: skip the disk, measure the network alone."
+    say "The gap between these two = your disk, not your wire."
+    ./target/release/andri --client 127.0.0.1 --file /tmp/andri-demo.bin --null-source --format gbps
+    sleep 2
+
+# Generate docs/demo.gif from the asciinema recording for the README.
+# Needs agg (brew install agg). Override CAST=<id> for a different recording.
+CAST := "3IOiboniYF9ZKJO4"
+gif:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v agg >/dev/null || { echo "install agg first: brew install agg" >&2; exit 1; }
+    mkdir -p docs
+    curl -fsSL "https://asciinema.org/a/{{CAST}}.cast" -o /tmp/andri-demo.cast
+    agg --theme monokai /tmp/andri-demo.cast docs/demo.gif
+    echo "wrote docs/demo.gif"
+
 # Verify the crate packages cleanly for crates.io (no upload).
 publish-dry:
     cargo publish --dry-run
