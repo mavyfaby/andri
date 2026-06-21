@@ -133,6 +133,15 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
     if mode == cli::Mode::File {
         return Err(crate::modes::file::not_implemented());
     }
+    // UDP requires an explicit target rate — there is no sensible default for
+    // the experiment's offered load (docs/udp.md). Fail fast, before connecting.
+    let udp_bitrate = if mode == cli::Mode::Udp {
+        Some(opts.bitrate.ok_or_else(|| {
+            io::Error::other("--udp requires --bitrate (e.g. --bitrate 1G, 500M, 10M)")
+        })?)
+    } else {
+        None
+    };
     if !opts.json {
         print_config(args, host, mode);
     }
@@ -165,7 +174,7 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
         parallel: opts.parallel,
         buffer_bytes: WRITE_BUF,
         bidir: opts.bidir,
-        bitrate_bps: is_udp.then_some(opts.bitrate),
+        bitrate_bps: udp_bitrate,
         packet_bytes: is_udp.then_some(opts.packet),
         file_len: None,
         null_source: None,
@@ -228,8 +237,15 @@ fn print_config(args: &Cli, host: &str, mode: cli::Mode) {
         "  duration   {}s (+ {WARMUP_SECS}s warm-up, excluded)",
         opts.duration
     );
-    eprintln!("  streams    {}", opts.parallel);
-    eprintln!("  buffer     {} KiB", WRITE_BUF / 1024);
+    if mode == cli::Mode::Udp {
+        // bitrate is required for UDP, so it is Some here.
+        let bps = opts.bitrate.unwrap_or(0);
+        eprintln!("  bitrate    {}", args.format.render(bps as f64));
+        eprintln!("  packet     {} bytes", opts.packet);
+    } else {
+        eprintln!("  streams    {}", opts.parallel);
+        eprintln!("  buffer     {} KiB", WRITE_BUF / 1024);
+    }
     eprintln!("  bidir      {}", opts.bidir);
     eprintln!("  format     {:?}", args.format);
     eprintln!();

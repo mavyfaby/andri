@@ -64,7 +64,7 @@ of `--tcp` / `--udp` / `--file <path>` is given.
 
 | Flag | Default | Description |
 |---|---|---|
-| `-b, --bitrate <rate>` | `1G` | Target send rate, e.g. `1G`, `500M`, `10M`. |
+| `-b, --bitrate <rate>` | **required** | Target send rate, e.g. `1G`, `500M`, `10M`. No default — `--udp` errors without it (the offered load is the experiment's input; see [udp.md](udp.md)). |
 | `--packet <bytes>` | `1472` | Datagram payload size (avoids 1500-MTU fragmentation). |
 | `--warmup <secs>` | `1` | Packets before the window, excluded. |
 

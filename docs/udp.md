@@ -15,6 +15,37 @@ UDP mode measures three things over a `UdpSocket`
 loss**, and **jitter** (interarrival delay variation). This is the only mode that
 requires the client binary — browsers cannot open raw UDP (see [docs/web.md](web.md) §2).
 
+## Why UDP needs a target rate (`--bitrate`)
+
+Unlike TCP, **UDP mode requires you to choose a send rate** — and that is by design, not
+a limitation. The two modes answer different questions:
+
+| Question | Mode |
+|---|---|
+| "How fast *can* this link go?" | **TCP** — uncapped; it discovers the ceiling |
+| "At *this* offered load, how much arrives and how clean is it?" | **UDP** — you set the load; it measures loss + jitter |
+
+TCP has built-in congestion control: the sender ramps up, backs off on loss, and settles
+at whatever the path sustains — so you just say "go" and it finds the maximum. **UDP has
+no flow or congestion control whatsoever.** It transmits at exactly the rate the sender is
+told to, full stop. There is no natural "max it out" behavior to discover, so a target
+rate (`--bitrate`) is the *input variable of the experiment*, not a cap on UDP's ability.
+
+This is what makes UDP mode useful: you set a rate that mimics real traffic and check
+whether it survives the path —
+
+```sh
+andri --client <ip> --udp --bitrate 64K    # ~ a VoIP call
+andri --client <ip> --udp --bitrate 5M     # ~ a video stream
+andri --client <ip> --udp --bitrate 1G     # saturate a gigabit LAN (default)
+andri --client <ip> --udp --bitrate 10G    # stress a 10G link
+```
+
+"How much loss?" is only meaningful paired with "at what rate?". To find a link's clean
+UDP capacity, sweep `--bitrate` upward until loss starts climbing. Sending "as fast as
+possible" (no target) would just flood the link to ~100% loss above capacity — useless and
+antisocial — which is why iperf3's UDP mode likewise requires a `-b` rate.
+
 ## 1. Roles
 
 - **Sender** — paces datagrams at the negotiated `bitrate_bps` for `duration + warmup`.
@@ -138,10 +169,32 @@ milliseconds.
 
 ## 6. Edge cases & decisions
 
-- **Receiver socket buffer** should be sized up (`SO_RCVBUF`) to avoid kernel-drop loss
-  being misattributed to the network; if the OS drops due to a full buffer, that loss is
-  real-but-local and **SHOULD** be surfaced distinctly where the platform exposes it
-  (e.g. `recvmmsg`/socket stats), as a future enhancement.
+- **Receiver socket buffer (`SO_RCVBUF`).** UDP has no flow control, so a sender pacing
+  faster than the receiver drains will overflow the kernel's per-socket receive buffer,
+  and the OS **silently drops** the overflow. That shows up in andri's result as packet
+  loss even though the network delivered the datagrams — the loss is real-but-local.
+  This is especially visible at high rates and on loopback (e.g. ~7% loss at 1 Gbit/s
+  with default buffers, purely from buffer pressure, no network involved).
+
+  **andri does not raise `SO_RCVBUF` itself.** Setting it requires a raw `setsockopt`
+  syscall, which in Rust means `unsafe` FFI (directly, or via `libc`/`socket2`); andri's
+  v1 deliberately uses **safe std only**, so it leaves the buffer at the OS default.
+  To reduce buffer-overflow loss at high rates, raise the OS limit before testing:
+
+  ```sh
+  # Linux — raise the max, then the default applies up to it
+  sudo sysctl -w net.core.rmem_max=33554432      # 32 MiB
+  sudo sysctl -w net.core.rmem_default=33554432
+
+  # macOS
+  sudo sysctl -w kern.ipc.maxsockbuf=33554432
+  ```
+
+  Treat any UDP loss reported on a quiet LAN at a rate well below link capacity as
+  *likely buffer-related*, not a network fault. Setting `SO_RCVBUF` in-process (and
+  distinguishing kernel-drop loss from network loss via socket stats / `recvmmsg`) is a
+  v2 enhancement — it is the point at which adding a `socket2`/`libc` dependency for the
+  `unsafe` syscall becomes justified.
 - **First packet** has no predecessor, so it seeds `J = 0` and is excluded from the first
   `D` computation.
 - **Very low bitrates** (sub-`packets_per_tick` < 1) still work via the fractional-packet

@@ -171,8 +171,10 @@ Tiers are intent, not commitment — they signal rough ordering, not fixed relea
   Presentation-only: it reads the same `samples[]`/live data the text readout uses, so
   it touches no protocol or measurement code.
 - File: multi-file/directory transfer; resume/range-restart.
-- UDP: raise `SO_RCVBUF`; DF bit + path-MTU reporting; network-vs-kernel-drop loss
-  attribution.
+- UDP: raise `SO_RCVBUF` (needs an `unsafe setsockopt` via `socket2`/`libc` — deferred to
+  keep v1 safe-std-only; until then, raise the OS buffer via sysctl, see
+  [docs/udp.md](docs/udp.md) §6); DF bit + path-MTU reporting; network-vs-kernel-drop
+  loss attribution.
 - TCP: RTT-based socket-buffer auto-tuning; per-stream (not just aggregate) time series.
 - Config file / profiles.
 

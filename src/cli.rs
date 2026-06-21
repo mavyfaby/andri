@@ -109,8 +109,10 @@ pub struct ClientOpts {
     pub bidir: bool,
 
     /// UDP target send rate, e.g. `1G`, `500M`, `10M` (bits/s; SI suffixes).
-    #[arg(short, long, value_parser = parse_bitrate, default_value = "1G")]
-    pub bitrate: u64,
+    /// Required for `--udp` — UDP has no natural rate to discover, so the offered
+    /// load is the experiment's input (see docs/udp.md). No default.
+    #[arg(short, long, value_parser = parse_bitrate)]
+    pub bitrate: Option<u64>,
 
     /// UDP datagram payload size in bytes (avoids 1500-MTU fragmentation).
     #[arg(long, default_value_t = 1472)]

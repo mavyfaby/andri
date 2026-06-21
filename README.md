@@ -75,6 +75,8 @@ andri --client 192.168.1.10 --file ./big.iso --null-source  # network-only (skip
 
 Throughput is reported in both bits/s and bytes/s, with a live once-per-second readout during the run.
 
+**See [docs/usage.md](docs/usage.md)** for the full usage guide — every flag, how to read the output, JSON format, and what's implemented today (TCP + UDP; file mode is planned).
+
 ## Standards & Methodology
 
 andri is built on published IETF standards so results are defensible and comparable, not invented. Full citations and the precise per-mode mapping live in [DESIGN.md](DESIGN.md#references); the short version:
@@ -103,7 +105,7 @@ andri/
 │   ├── meter.rs          # byte counters, per-second sampler, payload fill
 │   └── modes/            # per-mode data paths
 │       ├── tcp.rs        #   TCP throughput (implemented)
-│       ├── udp.rs        #   UDP loss/jitter (stub — v1 TODO)
+│       ├── udp.rs        #   UDP loss/jitter (implemented)
 │       └── file.rs       #   file transfer (stub — v1 TODO)
 └── docs/                 # detailed design specs (RFC-grounded)
     ├── protocol.md       #   control protocol & wire format
