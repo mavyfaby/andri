@@ -3,10 +3,36 @@
 //! Flag style (`--server` / `--client <host>`) is the locked v1 choice, to match
 //! iperf3 muscle memory.
 
-use clap::{Args, Parser};
+use clap::{Args, Parser, ValueEnum};
 
 /// Default control port (TCP). In the IANA User/Registered range (RFC 6335).
 pub const DEFAULT_PORT: u16 = 5201;
+
+/// Throughput unit shown in output (`docs/cli.md` §2). Exactly one.
+#[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Format {
+    /// Raw bits per second.
+    Bits,
+    /// Raw bytes per second.
+    Bytes,
+    /// Megabits per second (default; networking convention).
+    #[default]
+    Mbps,
+    /// Gigabits per second.
+    Gbps,
+}
+
+impl Format {
+    /// Render a bits-per-second value in this unit, with a unit suffix.
+    pub fn render(self, bits_per_sec: f64) -> String {
+        match self {
+            Format::Bits => format!("{bits_per_sec:.0} bit/s"),
+            Format::Bytes => format!("{:.0} byte/s", bits_per_sec / 8.0),
+            Format::Mbps => format!("{:.2} Mbps", bits_per_sec / 1e6),
+            Format::Gbps => format!("{:.2} Gbps", bits_per_sec / 1e9),
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "andri", version, about = "Fast, all-in-one LAN speed tester")]
@@ -20,6 +46,10 @@ pub struct Cli {
     /// Control port (server binds; client dials).
     #[arg(short, long, default_value_t = DEFAULT_PORT)]
     pub port: u16,
+
+    /// Throughput unit for output. Each role formats its own readout.
+    #[arg(long, value_enum, default_value_t = Format::Mbps)]
+    pub format: Format,
 
     /// Verbose logging.
     #[arg(short, long)]

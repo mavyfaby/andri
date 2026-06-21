@@ -239,7 +239,10 @@ mod tests {
                 accepted: true,
             }),
             sample_negotiate(),
-            Msg::Start(Start { data_port: 5202, server_seed: 7 }),
+            Msg::Start(Start {
+                data_port: 5202,
+                server_seed: 7,
+            }),
             Msg::Run,
             Msg::Stop,
             sample_result(),
