@@ -173,6 +173,13 @@ Tests are pure and need no network — the control framing is exercised against 
 in-memory stream rather than a socket. See [docs/testing.md](docs/testing.md) for the
 test strategy and a per-module index of every test and what it guards.
 
+## Contributing
+
+Bug reports, fixes, and well-scoped features are welcome. Run `just check` before opening a
+PR, keep design docs in sync with behavior changes, and be honest about measurements. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the full guide and [DESIGN.md](DESIGN.md) for the
+architecture and roadmap.
+
 ## Author
 
 [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
