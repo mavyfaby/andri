@@ -43,6 +43,10 @@ The differentiator is the bottom-left quadrant: andri measures the *real* file c
 the network-only ceiling, so the gap between them tells you whether the disk or the wire is
 your bottleneck — in one run, one tool.
 
+Want to verify the numbers on your own hardware? See [docs/benchmarking.md](docs/benchmarking.md)
+for a step-by-step real-LAN procedure, including how to validate andri's TCP throughput
+against `iperf3` on the same link.
+
 ## Install
 
 From crates.io (recommended — no Gatekeeper prompts, builds locally):
