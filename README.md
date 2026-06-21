@@ -8,9 +8,37 @@
 
 ![andri demo](docs/demo.gif)
 
-> Demo on Apple M5 (10-core), 16 GB, macOS 26.5.1 (arm64). Numbers are **loopback**
-> (`127.0.0.1`) — this machine's memory/kernel-copy speed, **not** a network link. On a
-> real LAN, andri reports your actual throughput (e.g. ~0.94 Gbit/s on gigabit Ethernet).
+> A real Mac → Ubuntu test over the LAN (not loopback) — validated against `iperf3` on the
+> same link. Full machine specs and numbers below.
+
+## Benchmarks
+
+Real two-machine LAN test — **not** loopback. andri's raw-TCP throughput is validated
+against `iperf3` on the same link to confirm the measurement is sound.
+
+**Test machines**
+
+| Role | Machine | CPU | RAM | OS | NIC |
+|---|---|---|---|---|---|
+| Server (receiver) | Desktop | Intel Core i5-6500 @ 3.20 GHz (4 cores) | 32 GB | Ubuntu 26.04 LTS (x86_64) | enp2s0 @ 1 GbE (wired) |
+| Client (sender) | MacBook | Apple M5 (10-core) | 16 GB | macOS 26.5.1 (arm64) | 5 GHz Wi-Fi |
+
+The Ubuntu server is wired at 1 GbE; the Mac client is on **5 GHz Wi-Fi**, so the wireless
+hop — not the gigabit wire — is the ceiling. ~700 Mbit/s is healthy real-world 5 GHz
+throughput, and both tools confirm it: andri and `iperf3` land within ~4% of each other on
+the same link, so that figure is the Wi-Fi, not the tool.
+
+**TCP throughput (single stream, 10s)**
+
+| Tool | Throughput |
+|---|---|
+| **andri** | **705 Mbit/s** |
+| iperf3 (receiver) | 678 Mbit/s |
+
+andri tracks the battle-tested `iperf3` reference within run-to-run variance — the
+measurement is sound. On a wired gigabit client both would approach ~940 Mbit/s.
+
+> Reproduce these on your own hardware with [docs/benchmarking.md](docs/benchmarking.md).
 
 **Author:** [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
 
