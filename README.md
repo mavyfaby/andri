@@ -1,6 +1,10 @@
 # andri
 
-**Fast, all-in-one LAN speed tester.** Measure TCP throughput, UDP loss/jitter, and real file-transfer speeds — one Rust binary, no dependencies.
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Standards-based](https://img.shields.io/badge/standards-RFC%203550%20%7C%206349%20%7C%202544-informational.svg)](DESIGN.md#references)
+[![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org)
+
+**Fast, all-in-one LAN speed tester.** Measure TCP throughput, UDP loss/jitter, and real file-transfer speeds — one standards-based Rust binary, no dependencies.
 
 > **Status: pre-release / in development.** The design is settled (see [DESIGN.md](DESIGN.md)); the implementation is being built mode by mode. Commands and flags below describe the intended interface and may not all work yet.
 
@@ -76,6 +80,10 @@ andri is built on published IETF standards so results are defensible and compara
 - Transports: TCP ([RFC 9293](https://www.rfc-editor.org/info/rfc9293)), UDP ([RFC 768](https://www.rfc-editor.org/info/rfc768)).
 
 > We distinguish what we implement *exactly* (RFC 3550 jitter) from what we are *informed by* (RFC 2544 and 6349 are methodologies/frameworks, not conformance targets — RFC 2544 in particular targets lab device testing, not host-to-host LAN tests). See DESIGN.md for the honest per-claim strength.
+
+## Author
+
+[mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
 
 ## License
 

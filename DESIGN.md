@@ -1,5 +1,7 @@
 # andri — Design
 
+**Author:** [mavyfaby](https://github.com/mavyfaby) &lt;maverickfabroa@gmail.com&gt;
+
 This document captures the architecture and protocol decisions for `andri`. It is the
 source of truth for implementation; the [README](README.md) is the user-facing summary.
 
