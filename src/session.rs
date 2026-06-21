@@ -6,7 +6,7 @@
 //! implemented rejection.
 
 use crate::cli::{self, Cli};
-use crate::modes::tcp;
+use crate::modes::{tcp, udp};
 use crate::proto::{self, Mode, Msg, Negotiate, ProtoError, Start};
 use std::io;
 use tokio::net::{TcpListener, TcpStream};
@@ -53,17 +53,34 @@ async fn serve_session(mut ctrl: TcpStream, fmt: cli::Format) -> io::Result<()> 
         return reject(&mut ctrl, ProtoError::VersionMismatch).await;
     }
 
-    // Negotiate (§3.3). Only TCP is implemented in v1.
+    // Negotiate (§3.3). TCP and UDP are implemented; file is not yet.
     let Msg::Negotiate(neg) = proto::read_msg(&mut ctrl).await? else {
         return reject(&mut ctrl, ProtoError::UnexpectedMessage).await;
     };
-    if neg.mode != Mode::Tcp {
+    if neg.mode == Mode::File {
         return reject(&mut ctrl, ProtoError::Internal).await;
     }
 
-    // Bind an ephemeral data listener and tell the client where (§3.4).
-    let data_listener = TcpListener::bind(("0.0.0.0", 0)).await?;
-    let data_port = data_listener.local_addr()?.port();
+    // Bind the mode's data listener (TCP) / socket (UDP) and tell the client
+    // its ephemeral port (§3.4). Both are kept until after the data path runs.
+    let tcp_data;
+    let udp_data;
+    let data_port = match neg.mode {
+        Mode::Tcp => {
+            let l = TcpListener::bind(("0.0.0.0", 0)).await?;
+            let port = l.local_addr()?.port();
+            tcp_data = Some(l);
+            udp_data = None;
+            port
+        }
+        Mode::Udp => {
+            let (s, port) = udp::bind_data().await?;
+            tcp_data = None;
+            udp_data = Some(s);
+            port
+        }
+        Mode::File => unreachable!("file rejected above"),
+    };
     proto::write_msg(
         &mut ctrl,
         // Fixed payload seed for now; drives the client's incompressible fill.
@@ -84,7 +101,11 @@ async fn serve_session(mut ctrl: TcpStream, fmt: cli::Format) -> io::Result<()> 
     let stop = async {
         let _ = proto::read_msg(&mut ctrl).await; // expected: Msg::Stop
     };
-    let result = tcp::serve(data_listener, &neg, fmt, stop).await?;
+    let result = match neg.mode {
+        Mode::Tcp => tcp::serve(tcp_data.unwrap(), &neg, fmt, stop).await?,
+        Mode::Udp => udp::serve(udp_data.unwrap(), &neg, fmt, stop).await?,
+        Mode::File => unreachable!("file rejected above"),
+    };
 
     proto::write_msg(&mut ctrl, &Msg::Result(result)).await?;
     Ok(())
@@ -108,11 +129,9 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
     let mode = opts.mode.selected().ok_or_else(|| {
         io::Error::other("a mode is required: pass one of --tcp, --udp, or --file <path>")
     })?;
-    // v1 implements TCP; UDP/file report their own not-yet-implemented error.
-    match mode {
-        cli::Mode::Tcp => {}
-        cli::Mode::Udp => return Err(crate::modes::udp::not_implemented()),
-        cli::Mode::File => return Err(crate::modes::file::not_implemented()),
+    // TCP and UDP are implemented; file is not yet.
+    if mode == cli::Mode::File {
+        return Err(crate::modes::file::not_implemented());
     }
     if !opts.json {
         print_config(args, host, mode);
@@ -137,16 +156,17 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
         return Err(io::Error::other("server rejected handshake"));
     }
 
-    // Negotiate (§3.3).
+    // Negotiate (§3.3). UDP carries bitrate + packet size; TCP leaves them None.
+    let is_udp = mode == cli::Mode::Udp;
     let neg = Negotiate {
-        mode: Mode::Tcp,
+        mode: if is_udp { Mode::Udp } else { Mode::Tcp },
         duration_secs: opts.duration,
         warmup_secs: WARMUP_SECS,
         parallel: opts.parallel,
         buffer_bytes: WRITE_BUF,
         bidir: opts.bidir,
-        bitrate_bps: None,
-        packet_bytes: None,
+        bitrate_bps: is_udp.then_some(opts.bitrate),
+        packet_bytes: is_udp.then_some(opts.packet),
         file_len: None,
         null_source: None,
     };
@@ -161,9 +181,13 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
         eprintln!("  payload    {}\n", crate::meter::payload_preview(&sample));
     }
 
-    // Run the data path: open streams, send for the window, live progress.
+    // Run the data path for the negotiated mode.
     proto::write_msg(&mut ctrl, &Msg::Run).await?;
-    tcp::drive(host, &start, &neg, args.format, opts.json).await?;
+    match mode {
+        cli::Mode::Tcp => tcp::drive(host, &start, &neg, args.format, opts.json).await?,
+        cli::Mode::Udp => udp::drive(host, &start, &neg, args.format, opts.json).await?,
+        cli::Mode::File => unreachable!("file rejected above"),
+    }
 
     // Tell the server the window is over and read its authoritative result.
     proto::write_msg(&mut ctrl, &Msg::Stop).await?;
@@ -173,6 +197,16 @@ pub async fn connect(args: &Cli, host: &str) -> io::Result<()> {
 
     if opts.json {
         println!("{}", serde_json::to_string_pretty(&result)?);
+    } else if is_udp {
+        println!(
+            "\nUDP: {} over {:.1}s | loss {}/{} ({:.2}%) | jitter {:.3} ms",
+            args.format.render(result.bits_per_sec),
+            result.duration_secs,
+            result.packets_lost.unwrap_or(0),
+            result.packets_expected.unwrap_or(0),
+            result.loss_ratio.unwrap_or(0.0) * 100.0,
+            result.jitter_ms.unwrap_or(0.0),
+        );
     } else {
         println!(
             "\nTCP throughput: {} over {:.1}s, {} stream(s)",

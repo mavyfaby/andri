@@ -108,9 +108,37 @@ pub struct ClientOpts {
     #[arg(long)]
     pub bidir: bool,
 
+    /// UDP target send rate, e.g. `1G`, `500M`, `10M` (bits/s; SI suffixes).
+    #[arg(short, long, value_parser = parse_bitrate, default_value = "1G")]
+    pub bitrate: u64,
+
+    /// UDP datagram payload size in bytes (avoids 1500-MTU fragmentation).
+    #[arg(long, default_value_t = 1472)]
+    pub packet: usize,
+
     /// Emit machine-readable JSON results to stdout.
     #[arg(long)]
     pub json: bool,
+}
+
+/// Parse a bitrate with optional SI suffix (K/M/G = 10^3/10^6/10^9 bits/s).
+/// Bare numbers are bits/s. Decimal because link speeds are decimal bits.
+fn parse_bitrate(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    let (num, mult) = match s.chars().last() {
+        Some('K' | 'k') => (&s[..s.len() - 1], 1_000),
+        Some('M' | 'm') => (&s[..s.len() - 1], 1_000_000),
+        Some('G' | 'g') => (&s[..s.len() - 1], 1_000_000_000),
+        _ => (s, 1),
+    };
+    let value: f64 = num
+        .trim()
+        .parse()
+        .map_err(|_| format!("invalid bitrate: {s:?}"))?;
+    if value < 0.0 {
+        return Err(format!("bitrate must be non-negative: {s:?}"));
+    }
+    Ok((value * mult as f64) as u64)
 }
 
 /// Mode selection: exactly one of `--tcp` / `--udp` / `--file <path>`.

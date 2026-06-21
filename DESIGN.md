@@ -158,14 +158,27 @@ v1 is the **client binary + three raw modes**, nothing more:
   once/sec; UDP default packet 1472 bytes; `--server`/`--client` flag-style CLI.
 - **Security:** plaintext, trusted LAN.
 
-## Deferred to v2
+## Roadmap (deferred)
 
+Tiers are intent, not commitment — they signal rough ordering, not fixed releases.
+
+**v2 candidates**
 - **Web dashboard** (the whole HTTP/WebSocket browser surface — [docs/web.md](docs/web.md)).
-- Results aggregation across client/browser; TLS/auth (control + web); WebRTC UDP.
+- **TUI** — an interactive terminal UI for the live readout: gauges, a scrolling
+  sparkline of throughput, per-stream bars, and live loss/jitter — instead of the
+  current plain per-second text lines. Likely built on `ratatui` + `crossterm`, opt-in
+  via a flag (e.g. `--tui`) and auto-disabled when output is piped/non-interactive.
+  Presentation-only: it reads the same `samples[]`/live data the text readout uses, so
+  it touches no protocol or measurement code.
 - File: multi-file/directory transfer; resume/range-restart.
-- Config file / profiles.
-- UDP: DF bit + path-MTU reporting; network-vs-kernel-drop loss attribution.
+- UDP: raise `SO_RCVBUF`; DF bit + path-MTU reporting; network-vs-kernel-drop loss
+  attribution.
 - TCP: RTT-based socket-buffer auto-tuning; per-stream (not just aggregate) time series.
+- Config file / profiles.
+
+**v3+ / later**
+- Results aggregation across client/browser; persisted run history.
+- TLS/auth (control + web); WebRTC UDP.
 - Control serialization swap to CBOR/`bincode`/`postcard` (framing already supports it).
 
 ## References
