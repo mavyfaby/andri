@@ -4,6 +4,8 @@
 
 This document captures the architecture and protocol decisions for `andri`. It is the
 source of truth for implementation; the [README](README.md) is the user-facing summary.
+Testing approach and the project-wide test index live in
+[docs/testing.md](docs/testing.md).
 
 ## Goals
 
